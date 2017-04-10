@@ -1,6 +1,7 @@
 require_relative 'spec_configuration_dsl_20X'
 require_relative 'spec_target_dsl_20X'
 require_relative 'spec_variant_dsl_20X'
+require_relative 'spec_scheme_dsl_20X'
 
 module StructCore
 	class SpecFileDSL20X
@@ -24,6 +25,9 @@ module StructCore
 			@current_scope = dsl
 			block.call
 			@current_scope = nil
+
+			dsl.configuration.profiles = %w(general:release ios:release)
+			dsl.configuration.profiles = %w(general:debug ios:debug) if dsl.configuration.type == 'debug'
 
 			@spec_file.configurations << dsl.configuration
 		end
@@ -57,6 +61,26 @@ module StructCore
 			@spec_file.variants << dsl.variant
 		end
 
+		def __spec_scheme(name = nil, &block)
+			return unless name.is_a?(String) && !name.empty? && !block.nil?
+
+			dsl = StructCore::SpecSchemeDSL20X.new
+			dsl.scheme = StructCore::Specfile::Scheme.new name
+			@current_scope = dsl
+			block.call
+			@current_scope = nil
+
+			@spec_file.schemes << dsl.scheme
+		end
+
+		def pre_generate(&block)
+			@spec_file.pre_generate_script = StructCore::Specfile::HookBlockScript.new block
+		end
+
+		def post_generate(&block)
+			@spec_file.post_generate_script = StructCore::Specfile::HookBlockScript.new block
+		end
+
 		def respond_to_missing?(_, _)
 			true
 		end
@@ -68,6 +92,8 @@ module StructCore
 				send('__spec_target', *args, &block)
 			elsif @current_scope.nil? && method == :variant
 				send('__spec_variant', *args, &block)
+			elsif @current_scope.nil? && method == :scheme
+				send('__spec_scheme', *args, &block)
 			else
 				@current_scope.send(method, *args, &block)
 			end
